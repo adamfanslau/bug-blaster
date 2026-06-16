@@ -6,6 +6,7 @@ export class Input {
   mouseY = 0;
   mouseDown = false;
   mouseClicked = false;
+  private lastMouseMoveAt = Number.NEGATIVE_INFINITY;
 
   constructor(canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -22,6 +23,7 @@ export class Input {
       const rect = canvas.getBoundingClientRect();
       this.mouseX = ((e.clientX - rect.left) / rect.width) * canvas.width;
       this.mouseY = ((e.clientY - rect.top) / rect.height) * canvas.height;
+      this.lastMouseMoveAt = performance.now();
     });
     canvas.addEventListener("mousedown", () => {
       this.mouseDown = true;
@@ -40,6 +42,11 @@ export class Input {
   /** True only on the frame the key was first pressed. */
   wasPressed(code: string): boolean {
     return this.keysPressed.has(code);
+  }
+
+  /** True if the mouse moved within the last `withinMs` milliseconds. */
+  mouseRecentlyMoved(withinMs = 1500): boolean {
+    return performance.now() - this.lastMouseMoveAt < withinMs;
   }
 
   /** Clears per-frame state; called by the game loop after update/render. */

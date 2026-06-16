@@ -32,10 +32,9 @@ export class PlayScene implements Scene {
     this.player.update(dt, input);
 
     if (input.mouseClicked || input.wasPressed("Space")) {
-      const angle = Math.atan2(
-        input.mouseY - this.player.y,
-        input.mouseX - this.player.x,
-      );
+      const angle = input.mouseRecentlyMoved()
+        ? Math.atan2(input.mouseY - this.player.y, input.mouseX - this.player.x)
+        : -Math.PI / 2; // straight up
       this.bullets.push(new Bullet(this.player.x, this.player.y, angle));
     }
 
