@@ -8,7 +8,12 @@ export class Input {
   mouseClicked = false;
   private lastMouseMoveAt = Number.NEGATIVE_INFINITY;
 
-  constructor(canvas: HTMLCanvasElement) {
+  touchX = 0;
+  touchY = 0;
+  touchActive = false;
+  touchStarted = false;
+
+  constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
       if (!this.keysDown.has(e.code)) {
         this.keysPressed.add(e.code);
@@ -32,6 +37,49 @@ export class Input {
     window.addEventListener("mouseup", () => {
       this.mouseDown = false;
     });
+
+    // preventDefault() stops page scroll/zoom and suppresses the synthetic
+    // mouse events browsers fire after touches, keeping mouse state touch-free.
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          this.updateTouchPosition(e.touches[0]);
+          this.touchActive = true;
+          this.touchStarted = true;
+        }
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
+        if (e.touches.length > 0) this.updateTouchPosition(e.touches[0]);
+      },
+      { passive: false },
+    );
+    for (const type of ["touchend", "touchcancel"] as const) {
+      canvas.addEventListener(
+        type,
+        (e) => {
+          e.preventDefault();
+          if (e.touches.length === 0) {
+            this.touchActive = false;
+          } else {
+            this.updateTouchPosition(e.touches[0]);
+          }
+        },
+        { passive: false },
+      );
+    }
+  }
+
+  private updateTouchPosition(touch: Touch): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.touchX = ((touch.clientX - rect.left) / rect.width) * this.canvas.width;
+    this.touchY = ((touch.clientY - rect.top) / rect.height) * this.canvas.height;
   }
 
   /** True while the key is held. */
@@ -53,5 +101,6 @@ export class Input {
   endFrame(): void {
     this.keysPressed.clear();
     this.mouseClicked = false;
+    this.touchStarted = false;
   }
 }

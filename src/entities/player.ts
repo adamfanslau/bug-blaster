@@ -1,13 +1,14 @@
 import type { Input } from "../engine/input";
 
 const SPEED = 320;
+const STARTING_LIVES = 5;
 
 /** The developer: moves along the bottom of the screen and aims at the cursor. */
 export class Player {
   x: number;
   y: number;
   readonly radius = 16;
-  lives = 3;
+  lives = STARTING_LIVES;
 
   constructor(
     x: number,
@@ -19,10 +20,16 @@ export class Player {
   }
 
   update(dt: number, input: Input): void {
-    let dir = 0;
-    if (input.isDown("ArrowLeft") || input.isDown("KeyA")) dir -= 1;
-    if (input.isDown("ArrowRight") || input.isDown("KeyD")) dir += 1;
-    this.x += dir * SPEED * dt;
+    if (input.touchActive) {
+      const dx = input.touchX - this.x;
+      const step = SPEED * dt;
+      this.x += Math.abs(dx) <= step ? dx : Math.sign(dx) * step;
+    } else {
+      let dir = 0;
+      if (input.isDown("ArrowLeft") || input.isDown("KeyA")) dir -= 1;
+      if (input.isDown("ArrowRight") || input.isDown("KeyD")) dir += 1;
+      this.x += dir * SPEED * dt;
+    }
     this.x = Math.max(this.radius, Math.min(this.worldWidth - this.radius, this.x));
   }
 
