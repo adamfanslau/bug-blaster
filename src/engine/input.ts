@@ -1,3 +1,5 @@
+import { VP } from "../render/viewport";
+
 export class Input {
   private readonly keysDown = new Set<string>();
   private readonly keysPressed = new Set<string>();
@@ -10,6 +12,9 @@ export class Input {
 
   touchX = 0;
   touchY = 0;
+  /** Where the current touch began (for start-based button hit tests). */
+  touchStartX = 0;
+  touchStartY = 0;
   touchActive = false;
   touchStarted = false;
   touchCount = 0;
@@ -29,8 +34,8 @@ export class Input {
 
     canvas.addEventListener("mousemove", (e) => {
       const rect = canvas.getBoundingClientRect();
-      this.mouseX = ((e.clientX - rect.left) / rect.width) * canvas.width;
-      this.mouseY = ((e.clientY - rect.top) / rect.height) * canvas.height;
+      this.mouseX = ((e.clientX - rect.left) / rect.width) * VP.w;
+      this.mouseY = ((e.clientY - rect.top) / rect.height) * VP.h;
       this.lastMouseMoveAt = performance.now();
     });
     canvas.addEventListener("mousedown", () => {
@@ -49,7 +54,11 @@ export class Input {
         e.preventDefault();
         if (e.touches.length > 0) {
           this.updateTouchPosition(e.touches[0]);
-          if (!this.touchActive) this.touchStarted = true;
+          if (!this.touchActive) {
+            this.touchStarted = true;
+            this.touchStartX = this.touchX;
+            this.touchStartY = this.touchY;
+          }
           this.touchActive = true;
           if (e.touches.length >= 2 && this.touchCount < 2) this.multiTouchStarted = true;
           this.touchCount = e.touches.length;
@@ -84,8 +93,8 @@ export class Input {
 
   private updateTouchPosition(touch: Touch): void {
     const rect = this.canvas.getBoundingClientRect();
-    this.touchX = ((touch.clientX - rect.left) / rect.width) * this.canvas.width;
-    this.touchY = ((touch.clientY - rect.top) / rect.height) * this.canvas.height;
+    this.touchX = ((touch.clientX - rect.left) / rect.width) * VP.w;
+    this.touchY = ((touch.clientY - rect.top) / rect.height) * VP.h;
   }
 
   /** True while the key is held. */

@@ -2,6 +2,7 @@ import type { Player } from "../entities/player";
 import { clamp, roundRectPath } from "./drawUtils";
 import { QUALITY } from "./quality";
 import { glowSprite, shadowSprite } from "./sprites";
+import { VP } from "./viewport";
 
 const MONO = "ui-monospace, Menlo, Consolas, monospace";
 
@@ -15,13 +16,16 @@ export function drawDev(ctx: CanvasRenderingContext2D, p: Player, time: number):
   const mash = p.mashT > 0 ? p.mashT / 0.12 : 0;
   const hurt = p.hurtT > 0 ? p.hurtT / 0.45 : 0;
 
+  const k = VP.world;
   ctx.save();
   // Ground shadow under the whole desk.
   ctx.globalAlpha = 0.6;
-  ctx.drawImage(shadowSprite(), x - 80, floorY - 14, 160, 28);
+  ctx.drawImage(shadowSprite(), x - 80 * k, floorY - 14 * k, 160 * k, 28 * k);
   ctx.globalAlpha = 1;
 
+  // Everything below is authored at desktop size around the anchor; scale once here.
   ctx.translate(x, floorY + p.recoil);
+  ctx.scale(k, k);
   ctx.rotate(lean);
 
   // Screen light spilling around the laptop onto the dev.

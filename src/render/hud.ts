@@ -1,9 +1,7 @@
 import type { Rage } from "../systems/rage";
-import { rand, roundRectPath } from "./drawUtils";
+import { clamp, clearTextMeasureCache, fitFontPx, measureTextWidth, MONO, rand, roundRectPath } from "./drawUtils";
 import { H, W } from "./projection";
-import { QUALITY } from "./quality";
-
-const MONO = "ui-monospace, Menlo, Consolas, monospace";
+import { onViewportResize, VP, type ViewportState } from "./viewport";
 
 export interface Rect {
   x: number;
@@ -15,14 +13,90 @@ export interface Rect {
 export const hitTest = (r: Rect, x: number, y: number): boolean =>
   x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
-export const MUTE_RECT: Rect = { x: W - 122, y: 70, w: 108, h: 24 };
-export const RAGE_BUTTON_RECT: Rect = { x: W - 150, y: H - 76, w: 132, h: 56 };
+export interface HudFonts {
+  label: number;
+  small: number;
+  score: number;
+  mute: number;
+  button: number;
+}
 
-const SCORE_RECT: Rect = { x: 14, y: 12, w: 220, h: 52 };
-const LIVES_RECT: Rect = { x: W - 14 - 190, y: 12, w: 190, h: 52 };
-const RAGE_RECT: Rect = { x: W / 2 - 170, y: 12, w: 340, h: 36 };
+export interface HudLayout {
+  score: Rect;
+  lives: Rect;
+  rage: Rect;
+  mute: Rect;
+  rageButton: Rect;
+  /** Portrait: HUD rows stacked, mute at the end of the rage row. */
+  stacked: boolean;
+  /** HUD scale (VP.ui). */
+  u: number;
+  f: HudFonts;
+  muteLabel: (muted: boolean) => string;
+}
+
+/**
+ * Computes every HUD rectangle for the current viewport. In fixed desktop mode this
+ * evaluates to the original constants exactly (score 14,12,220,52 and so on).
+ */
+export function layoutHud(vp: ViewportState): HudLayout {
+  const u = vp.ui;
+  const fluid = vp.mode === "fluid";
+  const L = vp.safe.left + 14;
+  const T = vp.safe.top + 12;
+  const Rt = vp.w - vp.safe.right - 14;
+  const B = vp.h - vp.safe.bottom - 12;
+  const f: HudFonts = { label: 10 * u, small: 11 * u, score: 26 * u, mute: 11 * u, button: 20 * u };
+  const muteLabel =
+    vp.touch && fluid
+      ? (m: boolean): string => (m ? "SOUND OFF" : "SOUND ON")
+      : (m: boolean): string => (m ? "[M] sound: off" : "[M] sound: on");
+
+  if (!vp.portrait) {
+    const score: Rect = { x: L, y: T, w: 220 * u, h: 52 * u };
+    const lives: Rect = { x: Rt - 190 * u, y: T, w: 190 * u, h: 52 * u };
+    const scoreRight = score.x + score.w;
+    const gap = lives.x - scoreRight;
+    const rw = Math.min(340 * u, gap - 16);
+    // Screen-centered (desktop stays put), clamped into the gap so a wide score panel can't overlap it.
+    const rx = clamp((vp.w - rw) / 2, scoreRight + 8, lives.x - 8 - rw);
+    const rage: Rect = { x: rx, y: T, w: rw, h: 36 * u };
+    const mute: Rect = { x: Rt - 108 * u, y: T + 58 * u, w: 108 * u, h: vp.touch ? Math.max(24 * u, 36) : 24 * u };
+    let rageButton: Rect;
+    if (!fluid) {
+      rageButton = { x: vp.w - 150, y: vp.h - 76, w: 132, h: 56 };
+    } else {
+      const s = Math.max(72, 56 * u);
+      rageButton = { x: Rt - s, y: vp.h * 0.55 - s / 2, w: s, h: s };
+    }
+    return { score, lives, rage, mute, rageButton, stacked: false, u, f, muteLabel };
+  }
+
+  const inner = Rt - L;
+  const score: Rect = { x: L, y: T, w: 0.52 * inner - 4, h: 52 * u };
+  const livesX = score.x + score.w + 8;
+  const lives: Rect = { x: livesX, y: T, w: Rt - livesX, h: 52 * u };
+  const row2 = T + 52 * u + 8;
+  const mute: Rect = { x: Rt - 84 * u, y: row2, w: 84 * u, h: 36 * u };
+  const rage: Rect = { x: L, y: row2, w: inner - mute.w - 8, h: 36 * u };
+  const s = Math.max(72, 60 * u);
+  const rageButton: Rect = { x: Rt - s, y: B - s, w: s, h: s };
+  return { score, lives, rage, mute, rageButton, stacked: true, u, f, muteLabel };
+}
+
+export let HUD: HudLayout = layoutHud(VP);
 
 const strokeCache = new Map<string, CanvasGradient>();
+let barGradient: CanvasGradient | null = null;
+let barGradientKey = "";
+
+onViewportResize((vp) => {
+  HUD = layoutHud(vp);
+  strokeCache.clear();
+  barGradient = null;
+  barGradientKey = "";
+  clearTextMeasureCache();
+});
 
 function panelStroke(ctx: CanvasRenderingContext2D, r: Rect): CanvasGradient {
   const key = `${r.x},${r.y},${r.w}`;
@@ -37,18 +111,19 @@ function panelStroke(ctx: CanvasRenderingContext2D, r: Rect): CanvasGradient {
 }
 
 export function drawPanel(ctx: CanvasRenderingContext2D, r: Rect, accent?: string): void {
+  const u = HUD.u;
   ctx.fillStyle = "rgba(10,12,24,0.74)";
-  roundRectPath(ctx, r.x, r.y, r.w, r.h, 6);
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, 6 * u);
   ctx.fill();
   ctx.lineWidth = 1;
   ctx.strokeStyle = panelStroke(ctx, r);
   ctx.stroke();
   ctx.fillStyle = accent ?? "rgba(126,231,255,0.8)";
-  ctx.fillRect(r.x + 6, r.y, r.w - 12, 2);
+  ctx.fillRect(r.x + 6 * u, r.y, r.w - 12 * u, 2);
 }
 
-export function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
-  ctx.font = `bold 10px ${MONO}`;
+export function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, px = HUD.f.label): void {
+  ctx.font = `bold ${px}px ${MONO}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillStyle = "#8b9bb4";
@@ -56,19 +131,19 @@ export function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number
 }
 
 export function drawMuteButton(ctx: CanvasRenderingContext2D, muted: boolean): void {
-  const r = MUTE_RECT;
+  const r = HUD.mute;
   ctx.save();
   ctx.fillStyle = "rgba(10,12,24,0.74)";
-  roundRectPath(ctx, r.x, r.y, r.w, r.h, 5);
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, 5 * HUD.u);
   ctx.fill();
   ctx.strokeStyle = muted ? "rgba(255,107,107,0.6)" : "rgba(126,231,255,0.45)";
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.font = `bold 11px ${MONO}`;
+  ctx.font = `bold ${HUD.f.mute}px ${MONO}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = muted ? "#ff6b6b" : "#b8c4d0";
-  ctx.fillText(muted ? "[M] sound: off" : "[M] sound: on", r.x + r.w / 2, r.y + r.h / 2 + 1);
+  ctx.fillText(HUD.muteLabel(muted), r.x + r.w / 2, r.y + r.h / 2 + 1);
   ctx.restore();
 }
 
@@ -119,10 +194,11 @@ export function drawGlitchTitle(ctx: CanvasRenderingContext2D, text: string, x: 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const wob = Math.sin(time * 7) * 0.6;
+  const off = Math.max(2, px * 0.047);
   ctx.fillStyle = "#ff3b5c";
-  ctx.fillText(text, x - 3 - wob, y + 1);
+  ctx.fillText(text, x - off - wob, y + 1);
   ctx.fillStyle = "#00e5ff";
-  ctx.fillText(text, x + 3 + wob, y - 1);
+  ctx.fillText(text, x + off + wob, y - 1);
   ctx.fillStyle = "#ffffff";
   ctx.fillText(text, x, y);
   if (time % 1.3 < 0.08) {
@@ -172,89 +248,105 @@ export class Hud {
   }
 
   render(ctx: CanvasRenderingContext2D, s: HudState): void {
+    const L = HUD;
+    const u = L.u;
     ctx.save();
 
     // Score.
-    drawPanel(ctx, SCORE_RECT);
-    drawLabel(ctx, "SCORE", SCORE_RECT.x + 12, SCORE_RECT.y + 9);
+    drawPanel(ctx, L.score);
+    drawLabel(ctx, "SCORE", L.score.x + 12 * u, L.score.y + 9 * u);
+    const scoreText = String(Math.round(this.displayScore));
+    const sprintText = `SPRINT ${s.sprint}`;
+    const sprintFont = `bold ${L.f.small}px ${MONO}`;
+    const sprintW = measureTextWidth(ctx, sprintText, sprintFont);
+    const scorePx = fitFontPx(ctx, scoreText, "bold", L.f.score, L.score.w - 24 * u - sprintW - 8 * u);
     const scale = 1 + 0.3 * this.bumpT * this.bumpT;
     ctx.save();
-    ctx.translate(SCORE_RECT.x + 12, SCORE_RECT.y + 40);
+    ctx.translate(L.score.x + 12 * u, L.score.y + 40 * u);
     ctx.scale(scale, scale);
-    ctx.font = `bold 26px ${MONO}`;
+    ctx.font = `bold ${scorePx}px ${MONO}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = this.bumpT > 0 ? "#7ee7ff" : "#e6edf3";
-    ctx.fillText(String(Math.round(this.displayScore)), 0, 0);
+    ctx.fillText(scoreText, 0, 0);
     ctx.restore();
-    ctx.font = `bold 11px ${MONO}`;
+    ctx.font = sprintFont;
     ctx.textAlign = "right";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ffb347";
-    ctx.fillText(`SPRINT ${s.sprint}`, SCORE_RECT.x + SCORE_RECT.w - 12, SCORE_RECT.y + 40);
+    ctx.fillText(sprintText, L.score.x + L.score.w - 12 * u, L.score.y + 40 * u);
 
     // Lives.
-    drawPanel(ctx, LIVES_RECT, "rgba(255,179,71,0.8)");
-    drawLabel(ctx, "COFFEE LEFT", LIVES_RECT.x + 12, LIVES_RECT.y + 9);
+    drawPanel(ctx, L.lives, "rgba(255,179,71,0.8)");
+    drawLabel(ctx, L.stacked ? "COFFEE" : "COFFEE LEFT", L.lives.x + 12 * u, L.lives.y + 9 * u);
+    const mugStep = L.stacked ? (L.lives.w - 24 * u) / s.maxLives : 32 * u;
+    const mugSize = L.stacked ? Math.min(13 * u, mugStep * 0.4) : 13 * u;
+    const mugFirst = L.stacked ? 12 * u + mugStep / 2 : 24 * u;
     for (let i = 0; i < s.maxLives; i++) {
       const full = i < s.lives;
-      const mx = LIVES_RECT.x + 24 + i * 32;
-      const my = LIVES_RECT.y + 36;
+      const mx = L.lives.x + mugFirst + i * mugStep;
+      const my = L.lives.y + 36 * u;
       ctx.save();
       if (i === s.lives && this.mugWobbleT > 0) {
         ctx.translate(mx, my);
         ctx.rotate(Math.sin(s.time * 30) * 0.25 * (this.mugWobbleT / 0.3));
         ctx.translate(-mx, -my);
       }
-      drawMug(ctx, mx, my, 13, full, s.time);
+      drawMug(ctx, mx, my, mugSize, full, s.time);
       ctx.restore();
     }
 
     // Rage meter.
     const ready = s.rage.state === "ready";
     const pulse = 0.5 + 0.5 * Math.sin(s.time * 8);
-    drawPanel(ctx, RAGE_RECT, ready ? `rgba(255,46,136,${0.5 + 0.5 * pulse})` : "rgba(255,46,136,0.8)");
-    drawLabel(ctx, "RAGE", RAGE_RECT.x + 12, RAGE_RECT.y + 8);
-    const barX = RAGE_RECT.x + 56;
-    const barW = RAGE_RECT.w - 68;
-    const barY = RAGE_RECT.y + 12;
-    const barH = 12;
+    drawPanel(ctx, L.rage, ready ? `rgba(255,46,136,${0.5 + 0.5 * pulse})` : "rgba(255,46,136,0.8)");
+    drawLabel(ctx, "RAGE", L.rage.x + 12 * u, L.rage.y + 8 * u);
+    const barX = L.rage.x + 56 * u;
+    const barW = L.rage.w - 68 * u;
+    const barH = 12 * u;
+    const barY = L.rage.y + (L.rage.h - barH) / 2;
     ctx.fillStyle = "rgba(255,255,255,0.08)";
-    roundRectPath(ctx, barX, barY, barW, barH, 4);
+    roundRectPath(ctx, barX, barY, barW, barH, 4 * u);
     ctx.fill();
     const fill = s.rage.state === "firing" ? s.rage.firingProgress : s.rage.value;
     if (fill > 0) {
-      const g = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      g.addColorStop(0, "#ffb347");
-      g.addColorStop(1, "#ff2e88");
-      ctx.fillStyle = g;
-      roundRectPath(ctx, barX, barY, Math.max(barH, barW * fill), barH, 4);
+      const key = `${barX},${barW}`;
+      if (!barGradient || barGradientKey !== key) {
+        barGradient = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        barGradient.addColorStop(0, "#ffb347");
+        barGradient.addColorStop(1, "#ff2e88");
+        barGradientKey = key;
+      }
+      ctx.fillStyle = barGradient;
+      roundRectPath(ctx, barX, barY, Math.max(barH, barW * fill), barH, 4 * u);
       ctx.fill();
     }
     if (ready) {
       ctx.strokeStyle = `rgba(255,255,255,${0.4 + 0.6 * pulse})`;
       ctx.lineWidth = 1.5 + pulse;
-      roundRectPath(ctx, barX - 1, barY - 1, barW + 2, barH + 2, 5);
+      roundRectPath(ctx, barX - 1, barY - 1, barW + 2, barH + 2, 5 * u);
       ctx.stroke();
-      ctx.font = `bold 11px ${MONO}`;
+      ctx.font = `bold ${L.f.small}px ${MONO}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(s.touchMode ? "RAGE READY: tap the button" : "RAGE READY: Shift / E", RAGE_RECT.x + RAGE_RECT.w / 2, RAGE_RECT.y + RAGE_RECT.h + 4);
+      const msg = s.touchMode ? "RAGE READY: tap the button" : "RAGE READY: Shift / E";
+      const cx = L.stacked ? L.rage.x + L.rage.w / 2 : W / 2;
+      ctx.fillText(msg, cx, L.rage.y + L.rage.h + 4);
     }
 
     drawMuteButton(ctx, s.muted);
 
     if (s.touchMode) {
-      const r = RAGE_BUTTON_RECT;
+      const r = L.rageButton;
       ctx.globalAlpha = ready ? 1 : 0.45;
       ctx.fillStyle = ready ? `rgba(255,46,136,${0.55 + 0.4 * pulse})` : "rgba(10,12,24,0.74)";
-      roundRectPath(ctx, r.x, r.y, r.w, r.h, 10);
+      roundRectPath(ctx, r.x, r.y, r.w, r.h, 10 * u);
       ctx.fill();
       ctx.strokeStyle = ready ? "#ffffff" : "rgba(255,46,136,0.5)";
       ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.font = `bold 20px ${MONO}`;
+      ctx.font = `bold ${fitFontPx(ctx, "RAGE", "bold", L.f.button, r.w - 12)}px ${MONO}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#ffffff";
@@ -266,4 +358,7 @@ export class Hud {
   }
 }
 
-export const touchModeDefault = (): boolean => QUALITY.mobile;
+export const touchModeDefault = (): boolean => VP.touch;
+
+// Keep H referenced for consumers that import it alongside W (fixed layout uses vp.h directly).
+void H;

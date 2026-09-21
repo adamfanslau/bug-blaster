@@ -1,11 +1,10 @@
+import { beginFrame } from "../render/viewport";
 import { Input } from "./input";
 import type { Scene } from "./scene";
 
 export class Game {
   readonly ctx: CanvasRenderingContext2D;
   readonly input: Input;
-  readonly width: number;
-  readonly height: number;
 
   /** Seconds since start; scenes use it to drive animations. */
   time = 0;
@@ -20,8 +19,6 @@ export class Game {
       throw new Error("2D rendering context not available");
     }
     this.ctx = ctx;
-    this.width = canvas.width;
-    this.height = canvas.height;
     this.input = new Input(canvas);
   }
 
@@ -50,8 +47,8 @@ export class Game {
     this.time += dt;
 
     this.scene?.update(dt);
-    // Reset and fence ctx state so nothing a scene sets can leak into the next frame.
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Apply the DPR transform and fence ctx state so nothing a scene sets leaks into the next frame.
+    beginFrame(this.ctx);
     this.ctx.save();
     this.scene?.render(this.ctx);
     this.ctx.restore();

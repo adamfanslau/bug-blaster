@@ -1,8 +1,9 @@
 import { Camera } from "../render/camera";
-import { rgba } from "../render/drawUtils";
+import { fitFontPx, measureTextWidth, MONO, rgba } from "../render/drawUtils";
 import { H, W } from "../render/projection";
 import { QUALITY } from "../render/quality";
 import { glowSprite } from "../render/sprites";
+import { VP } from "../render/viewport";
 import { FloatingTexts, type TextStyle } from "./floatingText";
 import { ParticleSystem } from "./particles";
 
@@ -28,9 +29,11 @@ interface Banner {
   life: number;
   max: number;
   big: boolean;
+  /** Resolved on first render for the current viewport. */
+  lines?: string[];
+  px?: number;
+  version?: number;
 }
-
-const MONO = "ui-monospace, Menlo, Consolas, monospace";
 
 /**
  * Facade over particles, floating text, rings, banners and the camera so the
@@ -43,20 +46,23 @@ export class Effects {
   private rings: Ring[] = [];
   private muzzles: Muzzle[] = [];
   private banners: Banner[] = [];
+  private seenVersion = VP.version;
 
   explode(x: number, y: number, color: string, hi: string, scale: number): void {
+    const k = VP.world;
     const n = Math.round(12 + 6 * scale);
-    this.particles.burst(x, y, color, n, 260 * scale + 60, 7 * scale + 2);
-    this.particles.burst(x, y, hi, Math.round(n / 3), 180 * scale + 40, 4 * scale + 1, 0.45);
-    this.particles.glyphs(x, y, 4 + Math.round(2 * scale), 8 + 8 * scale, "#e6edf3");
-    this.rings.push({ x, y, color: hi, maxR: 40 * scale + 8, life: 0.25, max: 0.25 });
+    this.particles.burst(x, y, color, n, (260 * scale + 60) * k, (7 * scale + 2) * k);
+    this.particles.burst(x, y, hi, Math.round(n / 3), (180 * scale + 40) * k, (4 * scale + 1) * k, 0.45);
+    this.particles.glyphs(x, y, 4 + Math.round(2 * scale), (8 + 8 * scale) * Math.max(k, VP.ui), "#e6edf3", 220 * k);
+    this.rings.push({ x, y, color: hi, maxR: (40 * scale + 8) * k, life: 0.25, max: 0.25 });
     this.camera.addTrauma(0.15 * scale);
   }
 
   /** Smaller pop for a non-lethal hit. */
   puff(x: number, y: number, color: string, scale: number): void {
-    this.particles.burst(x, y, color, 5, 140 * scale + 30, 4 * scale + 1, 0.4);
-    this.rings.push({ x, y, color, maxR: 22 * scale + 6, life: 0.18, max: 0.18 });
+    const k = VP.world;
+    this.particles.burst(x, y, color, 5, (140 * scale + 30) * k, (4 * scale + 1) * k, 0.4);
+    this.rings.push({ x, y, color, maxR: (22 * scale + 6) * k, life: 0.18, max: 0.18 });
   }
 
   drip(x: number, y: number, color: string, size: number): void {
@@ -65,7 +71,7 @@ export class Effects {
 
   muzzleFlash(x: number, y: number): void {
     this.muzzles.push({ x, y, life: 0.09 });
-    this.particles.sparks(x, y, 3, "#bfffff");
+    this.particles.sparks(x, y, 3, "#bfffff", VP.world);
   }
 
   floatText(x: number, y: number, text: string, style: TextStyle): void {
@@ -97,6 +103,15 @@ export class Effects {
   }
 
   update(dt: number, time: number): void {
+    if (VP.version !== this.seenVersion) {
+      // Screen-space leftovers from the old layout would land in the wrong place.
+      this.seenVersion = VP.version;
+      this.particles.count = 0;
+      this.texts.clear();
+      this.rings = [];
+      this.muzzles = [];
+      for (const b of this.banners) b.version = undefined;
+    }
     this.particles.update(dt);
     this.texts.update(dt);
     this.camera.update(dt, time);
@@ -131,22 +146,23 @@ export class Effects {
           ctx.globalCompositeOperation = "source-over";
         }
       }
+      const k = VP.world;
       for (const m of this.muzzles) {
         const t = m.life / 0.09;
         ctx.globalAlpha = t;
         ctx.strokeStyle = "#bfffff";
-        ctx.lineWidth = 3 * t;
+        ctx.lineWidth = 3 * t * k;
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
           const a = -Math.PI / 2 + (i - 2) * 0.45;
-          const len = 10 + 12 * t;
+          const len = (10 + 12 * t) * k;
           ctx.moveTo(m.x, m.y);
           ctx.lineTo(m.x + Math.cos(a) * len, m.y + Math.sin(a) * len);
         }
         ctx.stroke();
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.arc(m.x, m.y, 14 * t, 0, Math.PI * 2);
+        ctx.arc(m.x, m.y, 14 * t * k, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -155,14 +171,42 @@ export class Effects {
     this.texts.render(ctx);
   }
 
+  /** Fits a banner's text to the current viewport once (splitting "X: y" onto two lines if needed). */
+  private resolveBanner(ctx: CanvasRenderingContext2D, b: Banner, u: number): void {
+    if (b.version === VP.version && b.lines && b.px) return;
+    b.version = VP.version;
+    if (b.big) {
+      b.px = fitFontPx(ctx, b.text, "bold", Math.round(46 * u), W * 0.92, 18);
+      b.lines = [b.text];
+      return;
+    }
+    const px = Math.round(20 * u);
+    const maxW = Math.min(600 * u, W - 24) - 24;
+    if (measureTextWidth(ctx, b.text, `bold ${px}px ${MONO}`) <= maxW) {
+      b.px = px;
+      b.lines = [b.text];
+      return;
+    }
+    const colon = b.text.indexOf(": ");
+    const lines = colon > 0 ? [b.text.slice(0, colon + 1), b.text.slice(colon + 2)] : [b.text];
+    let fitted = px;
+    for (const line of lines) fitted = Math.min(fitted, fitFontPx(ctx, line, "bold", px, maxW, 12));
+    b.px = fitted;
+    b.lines = lines;
+  }
+
   /** Screen-space effects; call after the HUD, outside the shake. */
   renderScreen(ctx: CanvasRenderingContext2D): void {
     if (this.banners.length > 0) {
+      const u = VP.ui;
       ctx.save();
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const base = ctx.getTransform();
       for (const b of this.banners) {
+        this.resolveBanner(ctx, b, u);
+        const px = b.px ?? 20;
+        const lines = b.lines ?? [b.text];
         const age = b.max - b.life;
         const fadeIn = Math.min(1, age / 0.15);
         const fadeOut = Math.min(1, b.life / 0.4);
@@ -170,39 +214,50 @@ export class Effects {
         if (b.big) {
           const pop = 1 + 0.35 * Math.max(0, 1 - age / 0.25) ** 2;
           const y = H * 0.47;
+          const band = 92 * u;
           ctx.globalAlpha = alpha * 0.55;
           ctx.fillStyle = "#05060f";
-          ctx.fillRect(0, y - 46 * pop, W, 92 * pop);
+          ctx.fillRect(0, y - (band / 2) * pop, W, band * pop);
           ctx.globalAlpha = alpha;
           ctx.setTransform(base);
           ctx.translate(W / 2, y);
           ctx.scale(pop, pop);
-          ctx.font = `bold 46px ${MONO}`;
+          ctx.font = `bold ${px}px ${MONO}`;
           ctx.fillStyle = b.color;
-          ctx.fillText(b.text, -3, -6);
+          ctx.fillText(b.text, -3 * u, -6 * u);
           ctx.fillStyle = "#ffffff";
-          ctx.fillText(b.text, 0, -8);
+          ctx.fillText(b.text, 0, -8 * u);
           ctx.setTransform(base);
           if (b.sub && age > 0.3) {
             ctx.globalAlpha = alpha * Math.min(1, (age - 0.3) / 0.2);
-            ctx.font = `bold 16px ${MONO}`;
+            const subPx = fitFontPx(ctx, b.sub, "bold", Math.round(16 * u), W - 24, 11);
+            ctx.font = `bold ${subPx}px ${MONO}`;
             ctx.fillStyle = "#e6edf3";
-            ctx.fillText(b.sub, W / 2, y + 30);
+            ctx.fillText(b.sub, W / 2, y + 30 * u);
           }
         } else {
           const y = H * 0.3;
+          const bw = Math.min(600 * u, W - 24);
+          const lineH = px * 1.15;
+          const subPx = b.sub ? fitFontPx(ctx, b.sub, "", Math.round(13 * u), bw - 24, 10) : 0;
+          const bh = 20 * u + lines.length * lineH + (b.sub ? subPx * 1.6 : 0);
+          const top = y - 24 * u;
           ctx.globalAlpha = alpha;
           ctx.fillStyle = rgba("#05060f", 0.7);
-          ctx.fillRect(W / 2 - 300, y - 24, 600, b.sub ? 60 : 44);
+          ctx.fillRect(W / 2 - bw / 2, top, bw, bh);
           ctx.fillStyle = b.color;
-          ctx.fillRect(W / 2 - 300, y - 24, 600, 2);
-          ctx.font = `bold 20px ${MONO}`;
+          ctx.fillRect(W / 2 - bw / 2, top, bw, 2);
+          ctx.font = `bold ${px}px ${MONO}`;
           ctx.fillStyle = "#ffffff";
-          ctx.fillText(b.text, W / 2, y - 2);
+          let ly = top + 10 * u + lineH / 2;
+          for (const line of lines) {
+            ctx.fillText(line, W / 2, ly);
+            ly += lineH;
+          }
           if (b.sub) {
-            ctx.font = `13px ${MONO}`;
+            ctx.font = `${subPx}px ${MONO}`;
             ctx.fillStyle = "#b8c4d0";
-            ctx.fillText(b.sub, W / 2, y + 20);
+            ctx.fillText(b.sub, W / 2, ly + subPx * 0.3);
           }
         }
       }

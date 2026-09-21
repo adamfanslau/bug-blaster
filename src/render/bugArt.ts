@@ -2,6 +2,7 @@ import type { Bug } from "../entities/bug";
 import { clamp, rgba } from "./drawUtils";
 import { QUALITY } from "./quality";
 import { bodySprite, glowSprite, shadowSprite } from "./sprites";
+import { VP } from "./viewport";
 
 const MONO = "ui-monospace, Menlo, Consolas, monospace";
 const DASH: number[] = [4, 3];
@@ -133,7 +134,7 @@ export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug, time: number, p
 
   // Label.
   if (lod && bug.dying <= 0) {
-    const px = Math.round(9 + 5 * Math.min(1, scale));
+    const px = Math.round((9 + 5 * Math.min(1, scale)) * Math.max(VP.world, VP.ui));
     ctx.font = `bold ${px}px ${MONO}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
@@ -222,7 +223,7 @@ function drawFace(
     ctx.fillRect(x + ex - er * 0.9, ey - er * 0.6, er * 0.6, er * 0.3);
     return;
   }
-  const look = clamp((playerScreenX - x) / 200, -1, 1) * er * 0.4;
+  const look = clamp((playerScreenX - x) / (200 * VP.world), -1, 1) * er * 0.4;
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   ctx.ellipse(x - ex, ey, er, er * 1.15, 0, 0, Math.PI * 2);

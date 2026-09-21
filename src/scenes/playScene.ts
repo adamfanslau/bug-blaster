@@ -10,15 +10,20 @@ import { Player, STARTING_LIVES } from "../entities/player";
 import { Effects } from "../fx/effects";
 import { Background } from "../render/background";
 import { clamp, rand } from "../render/drawUtils";
-import { hitTest, Hud, MUTE_RECT, RAGE_BUTTON_RECT, touchModeDefault } from "../render/hud";
-import { FLOOR_Y, H, unproject, updateCamera, W } from "../render/projection";
+import { hitTest, Hud, HUD, touchModeDefault, type Rect } from "../render/hud";
+import { FLOOR_Y, H, unproject, unprojectLane, updateCamera, W } from "../render/projection";
 import { noteFrameTime } from "../render/quality";
+import { VP } from "../render/viewport";
 import { Rage } from "../systems/rage";
 import { newRunStats, recordKill, recordMiss, type RunStats } from "../systems/stats";
 import { GameOverScene } from "./gameOverScene";
 
 const TOUCH_FIRE_INTERVAL = 0.25;
 const BULLET_VZ = 1.1;
+/** Depth at which a touch shot crosses the finger's screen column. */
+const Z_AIM = 0.45;
+const MOUSE_VLANE_MAX = 2.5;
+const TOUCH_VLANE_MAX = 4;
 const RAGE_NAG_INTERVAL = 15;
 const DYING_SECONDS = 1.3;
 const Z_HIT_TOLERANCE = 0.25;
@@ -83,22 +88,27 @@ export class PlayScene implements Scene {
     // HUD input first so a tap on a button is never also a shot or a move.
     let allowTouch = true;
     let consumeClick = false;
-    const tapOn = (r: typeof MUTE_RECT): boolean =>
+    const tapOn = (r: Rect): boolean =>
       (input.mouseClicked && hitTest(r, input.mouseX, input.mouseY)) ||
       (input.touchStarted && hitTest(r, input.touchX, input.touchY));
-    if (input.wasPressed("KeyM") || tapOn(MUTE_RECT)) {
+    if (input.wasPressed("KeyM") || tapOn(HUD.mute)) {
       audio.toggleMute();
       audio.uiClick();
       consumeClick = true;
       allowTouch = false;
     }
-    const rageTap = this.touchMode && tapOn(RAGE_BUTTON_RECT);
+    const rageTap = this.touchMode && tapOn(HUD.rageButton);
     if (rageTap) {
       consumeClick = true;
       allowTouch = false;
     }
-    if (this.touchMode && input.touchActive && hitTest(RAGE_BUTTON_RECT, input.touchX, input.touchY)) {
-      allowTouch = false; // finger resting on the button shouldn't drag the dev
+    // A touch that BEGAN on a button never drives the dev, but a drag that merely passes over one does.
+    if (
+      input.touchActive &&
+      (hitTest(HUD.rageButton, input.touchStartX, input.touchStartY) ||
+        hitTest(HUD.mute, input.touchStartX, input.touchStartY))
+    ) {
+      allowTouch = false;
     }
     const rageKey = input.wasPressed("ShiftLeft") || input.wasPressed("ShiftRight") || input.wasPressed("KeyE");
     if ((rageKey || rageTap || input.multiTouchStarted) && this.rage.canFire()) {
@@ -109,13 +119,13 @@ export class PlayScene implements Scene {
 
     // Shooting.
     if ((input.mouseClicked && !consumeClick) || input.wasPressed("Space")) {
-      this.fire(input.mouseRecentlyMoved() && !input.touchActive);
+      this.fire(input.mouseRecentlyMoved() && !input.touchActive ? this.mouseAimVLane() : 0);
     }
     if (input.touchActive && allowTouch) {
       this.touchFireTimer -= dt;
       if (this.touchFireTimer <= 0) {
         this.touchFireTimer = TOUCH_FIRE_INTERVAL;
-        this.fire(false);
+        this.fire(this.touchAimVLane());
       }
     } else {
       this.touchFireTimer = 0;
@@ -191,20 +201,30 @@ export class PlayScene implements Scene {
     }
   }
 
-  private fire(aimed: boolean): void {
+  /** Lane velocity so the bullet passes through the point under the mouse. */
+  private mouseAimVLane(): number {
     const { input } = this.game;
-    let vLane = 0;
-    if (aimed) {
-      const target = unproject(input.mouseX, input.mouseY);
-      if (target.z < 0.95) {
-        const travel = (BULLET_START_Z - target.z) / BULLET_VZ;
-        vLane = clamp((target.lane - this.player.lane) / travel, -2.5, 2.5);
-      }
-    }
+    const target = unproject(input.mouseX, input.mouseY);
+    if (target.z >= 0.95) return 0;
+    const travel = (BULLET_START_Z - target.z) / BULLET_VZ;
+    return clamp((target.lane - this.player.lane) / travel, -MOUSE_VLANE_MAX, MOUSE_VLANE_MAX);
+  }
+
+  /**
+   * Lane velocity so the bullet flies up the finger's screen column. A fixed screen x
+   * is a constant-vLane path in this projection, so aiming at one depth covers the column.
+   */
+  private touchAimVLane(): number {
+    const targetLane = unprojectLane(this.game.input.touchX, Z_AIM);
+    const travel = (BULLET_START_Z - Z_AIM) / BULLET_VZ;
+    return clamp((targetLane - this.player.lane) / travel, -TOUCH_VLANE_MAX, TOUCH_VLANE_MAX);
+  }
+
+  private fire(vLane: number): void {
     this.bullets.push(new Bullet(this.player.lane, vLane));
     this.player.onFire();
     audio.shoot();
-    this.effects.muzzleFlash(this.player.screen.x, this.player.screen.floorY - 70);
+    this.effects.muzzleFlash(this.player.screen.x, this.player.screen.floorY - 70 * VP.world);
   }
 
   private spawn(kind: BugKindDef): void {
@@ -265,7 +285,7 @@ export class PlayScene implements Scene {
     this.effects.explode(x, y, bug.def.base, bug.def.hi, scale);
     this.effects.floatText(x, y - r - 8, `+${pts}`, "score");
     if (Math.random() < 0.6) {
-      this.effects.floatText(clamp(x, 140, W - 140), Math.max(30, y - r - 42), killQuip(bug.def.id), "quip");
+      this.effects.floatText(x, Math.max(30, y - r - 42 * VP.ui), killQuip(bug.def.id), "quip");
     }
     audio.squish(bug.def.squishPitch);
     this.rage.add(0.03 + Math.min(streak, 8) * 0.006) && this.onRageReady();
@@ -288,7 +308,7 @@ export class PlayScene implements Scene {
       this.hud.onLifeLost();
       this.effects.shake(0.5);
       this.effects.vignette();
-      this.effects.floatText(clamp(bug.screen.x, 230, W - 230), FLOOR_Y - 90, missQuip(this.player.lives), "miss");
+      this.effects.floatText(bug.screen.x, FLOOR_Y - 90 * VP.world, missQuip(this.player.lives), "miss");
       audio.miss();
       this.rage.add(0.34) && this.onRageReady();
     }

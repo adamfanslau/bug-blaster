@@ -103,18 +103,18 @@ export class ParticleSystem {
   }
 
   /** Short-lived sparks (muzzle flash). */
-  sparks(x: number, y: number, n: number, color: string): void {
+  sparks(x: number, y: number, n: number, color: string, scale = 1): void {
     for (let i = 0; i < n; i++) {
       const p = this.spawn();
       if (!p) return;
       const a = -Math.PI / 2 + rand(-0.9, 0.9);
-      const v = rand(180, 320);
+      const v = rand(180, 320) * scale;
       p.x = x;
       p.y = y;
       p.vx = Math.cos(a) * v;
       p.vy = Math.sin(a) * v;
       p.life = p.max = rand(0.12, 0.22);
-      p.size = rand(1.5, 3);
+      p.size = rand(1.5, 3) * scale;
       p.color = color;
       p.sprite = null;
       p.rot = 0;

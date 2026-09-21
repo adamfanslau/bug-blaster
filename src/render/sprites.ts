@@ -124,17 +124,21 @@ export function glyphSprite(ch: string, color: string, px: number): HTMLCanvasEl
 }
 
 let vignette: HTMLCanvasElement | null = null;
+let vignetteKey = "";
 
-/** Full-screen red vignette used on life loss. */
+/** Full-screen red vignette used on life loss; rebuilt when the canvas size changes. */
 export function vignetteSprite(w: number, h: number): HTMLCanvasElement {
-  if (!vignette) {
+  const key = `${Math.round(w)}x${Math.round(h)}`;
+  if (!vignette || vignetteKey !== key) {
     const [canvas, ctx] = makeCanvas(w, h);
-    const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.95);
+    const r = Math.max(w, h);
+    const g = ctx.createRadialGradient(w / 2, h / 2, r * 0.3, w / 2, h / 2, r * 0.8);
     g.addColorStop(0, "rgba(255,40,40,0)");
     g.addColorStop(1, "rgba(255,40,40,0.85)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
     vignette = canvas;
+    vignetteKey = key;
   }
   return vignette;
 }

@@ -2,6 +2,7 @@ import type { BugKindDef } from "../content/bugKinds";
 import { clamp, rand } from "../render/drawUtils";
 import { makeProjected, project, type Projected } from "../render/projection";
 import { drawBug } from "../render/bugArt";
+import { VP } from "../render/viewport";
 
 export type HitResult = "killed" | "damaged" | "shrug";
 
@@ -72,10 +73,10 @@ export class Bug {
     return this.def.movement === "grow" ? 1 + Math.min(this.age / 12, 1) * 1.6 : 1;
   }
 
-  /** Radius in px at z = 1 (before projection). */
+  /** Radius in px at z = 1 (before projection), scaled to the viewport's world size. */
   get radius(): number {
     const death = this.dying > 0 ? this.dying / 0.4 : 1;
-    return BASE_RADIUS * this.growMul * death;
+    return BASE_RADIUS * VP.world * this.growMul * death;
   }
 
   get screenRadius(): number {
@@ -162,7 +163,7 @@ export class Bug {
       case "jitter":
         this.z += this.speedZ * dt;
         this.lane += Math.sin(this.age * def.wobbleFreq + this.wobblePhase) * def.wobbleAmp * dt;
-        this.jitterX = rand(-2, 2);
+        this.jitterX = rand(-2, 2) * VP.world;
         this.teleportTimer -= dt;
         if (this.teleportTimer <= 0) {
           this.teleportTimer = rand(0.3, 0.7);

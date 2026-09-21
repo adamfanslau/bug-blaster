@@ -2,6 +2,7 @@ import { makeCanvas, pick, rand } from "./drawUtils";
 import { FLOOR_Y, floorYAt, getVpX, H, HORIZON_Y, NEAR_HALF_W, R, W } from "./projection";
 import { QUALITY } from "./quality";
 import { glyphSprite } from "./sprites";
+import { VP } from "./viewport";
 
 interface Bit {
   x: number;
@@ -16,26 +17,43 @@ const GRID_SPACING = (R - 1) / 12; // world depth between horizontal lines
 const GRID_SPEED = 1.4; // spacings per second, toward the camera
 const BIT_GLYPHS = ["0", "1", ";", "{", "}", "/", "<", ">", "=", "λ"];
 
-/** Synthwave corridor: cached sky, scrolling perspective grid, fog and parallax code bits. */
+/**
+ * Synthwave corridor: cached sky, scrolling perspective grid, fog and parallax code
+ * bits. Size-dependent caches rebuild lazily when the viewport version changes.
+ */
 export class Background {
-  private readonly sky: HTMLCanvasElement;
-  private readonly fogStrip: HTMLCanvasElement;
+  private sky!: HTMLCanvasElement;
+  private fogStrip!: HTMLCanvasElement;
+  private fogHeight = 120;
+  private builtVersion = -1;
   private phase = 0;
   private bits: Bit[] = [];
   private playerLane = 0;
 
   constructor() {
+    this.rebuild();
+  }
+
+  private rebuild(): void {
+    this.builtVersion = VP.version;
+    this.fogHeight = 0.448 * (FLOOR_Y - HORIZON_Y);
     this.sky = Background.renderSky();
-    this.fogStrip = Background.renderFog();
+    this.fogStrip = Background.renderFog(this.fogHeight);
+    const u = VP.ui;
+    this.bits = [];
     for (let i = 0; i < QUALITY.bits; i++) {
       const far = i % 3 !== 0;
       this.bits.push({
         x: Math.random() * W,
-        y: rand(10, HORIZON_Y - 12),
+        y: rand(10, HORIZON_Y - 12 * u),
         speed: far ? rand(4, 9) : rand(10, 18),
-        sprite: glyphSprite(pick(BIT_GLYPHS), far ? "#3a4a6a" : "#5c7ea8", far ? 10 : 13),
+        sprite: glyphSprite(
+          pick(BIT_GLYPHS),
+          far ? "#3a4a6a" : "#5c7ea8",
+          Math.round((far ? 10 : 13) * u),
+        ),
         bucket: i % 3,
-        parallax: far ? 12 : 30,
+        parallax: (far ? 12 : 30) * VP.world,
       });
     }
   }
@@ -54,28 +72,30 @@ export class Background {
     ctx.beginPath();
     ctx.rect(0, 0, W, HORIZON_Y);
     ctx.clip();
-    const sunR = 78;
+    const sunR = 0.39 * HORIZON_Y;
     const sun = ctx.createLinearGradient(0, HORIZON_Y - sunR, 0, HORIZON_Y + 10);
     sun.addColorStop(0, "#ffb347");
     sun.addColorStop(1, "#ff2e88");
     ctx.fillStyle = sun;
     ctx.beginPath();
-    ctx.arc(W / 2, HORIZON_Y + 6, sunR, 0, Math.PI * 2);
+    ctx.arc(W / 2, HORIZON_Y + sunR * 0.08, sunR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1a0b2e";
+    const stripe = sunR / 7;
     for (let i = 0; i < 6; i++) {
-      const y = HORIZON_Y - 8 - i * 11;
-      ctx.fillRect(W / 2 - sunR, y, sunR * 2, 3 + i * 0.6);
+      const y = HORIZON_Y - stripe * 0.7 - i * stripe;
+      ctx.fillRect(W / 2 - sunR, y, sunR * 2, stripe * (0.27 + i * 0.055));
     }
     ctx.restore();
 
     // Horizon glow band.
-    const glow = ctx.createLinearGradient(0, HORIZON_Y - 50, 0, HORIZON_Y + 50);
+    const band = 0.25 * HORIZON_Y;
+    const glow = ctx.createLinearGradient(0, HORIZON_Y - band, 0, HORIZON_Y + band);
     glow.addColorStop(0, "rgba(255,80,220,0)");
     glow.addColorStop(0.5, "rgba(255,80,220,0.5)");
     glow.addColorStop(1, "rgba(255,80,220,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(0, HORIZON_Y - 50, W, 100);
+    ctx.fillRect(0, HORIZON_Y - band, W, band * 2);
 
     // Floor base.
     const floor = ctx.createLinearGradient(0, HORIZON_Y, 0, H);
@@ -90,8 +110,7 @@ export class Background {
     return c;
   }
 
-  private static renderFog(): HTMLCanvasElement {
-    const height = 120;
+  private static renderFog(height: number): HTMLCanvasElement {
     const [c, ctx] = makeCanvas(W, height);
     const g = ctx.createLinearGradient(0, 0, 0, height);
     g.addColorStop(0, "rgba(26,11,46,0.95)");
@@ -112,6 +131,7 @@ export class Background {
   }
 
   render(ctx: CanvasRenderingContext2D, time: number): void {
+    if (this.builtVersion !== VP.version) this.rebuild();
     ctx.drawImage(this.sky, 0, 0);
 
     // Parallax code bits above the horizon, alpha bucketed to limit state changes.

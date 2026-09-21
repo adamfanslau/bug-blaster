@@ -1,19 +1,27 @@
 import { clamp, smoothstep } from "./drawUtils";
+import { onViewportResize, VP, type ViewportState } from "./viewport";
 
-/** Logical canvas size; CSS scales the canvas element. */
-export const W = 960;
-export const H = 540;
+/**
+ * Perspective parameters. These are live bindings re-derived from the viewport,
+ * so `import { W, H }` sites always read the current values. Never copy them
+ * into module-level constants.
+ */
 
+/** Logical canvas size. */
+export let W = 960;
+export let H = 540;
 /** Screen y of the vanishing point / horizon. */
-export const HORIZON_Y = 200;
+export let HORIZON_Y = 200;
 /** Screen y of the ground plane where z = 1 (the player's row). */
-export const FLOOR_Y = 468;
+export let FLOOR_Y = 468;
 /** Depth ratio: the far plane (z = 0) is R times farther than the near plane (z = 1). */
 export const R = 4;
 /** Half the corridor width in px at z = 1 (lane = ±1). */
-export const NEAR_HALF_W = 440;
+export let NEAR_HALF_W = 440;
 /** Pixels per world altitude unit at z = 1. */
-export const ALT_PX = 60;
+export let ALT_PX = 60;
+/** Vanishing-point parallax per unit of player lane. */
+export let PARALLAX_PX = 28;
 
 export interface Projected {
   x: number;
@@ -29,9 +37,23 @@ let vpX = W / 2;
 
 export const getVpX = (): number => vpX;
 
+export function configureProjection(vp: ViewportState): void {
+  W = vp.w;
+  H = vp.h;
+  HORIZON_Y = (vp.portrait ? 0.32 : 200 / 540) * H;
+  FLOOR_Y = (vp.portrait ? 0.78 : 468 / 540) * H;
+  NEAR_HALF_W = (440 / 960) * W;
+  ALT_PX = 60 * vp.world;
+  PARALLAX_PX = 28 * vp.world;
+  vpX = W / 2;
+}
+
+configureProjection(VP);
+onViewportResize(configureProjection);
+
 /** Eases the vanishing point opposite the player's lane so the whole corridor parallaxes. */
 export function updateCamera(playerLane: number, dt: number): void {
-  const target = W / 2 - playerLane * 28;
+  const target = W / 2 - playerLane * PARALLAX_PX;
   vpX += (target - vpX) * Math.min(1, dt * 6);
 }
 

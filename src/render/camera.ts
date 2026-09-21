@@ -1,5 +1,6 @@
 import { H, W } from "./projection";
 import { vignetteSprite } from "./sprites";
+import { VP } from "./viewport";
 
 interface Flash {
   color: string;
@@ -30,7 +31,7 @@ export class Camera {
 
   update(dt: number, time: number): void {
     this.trauma = Math.max(0, this.trauma - 1.8 * dt);
-    const shake = this.trauma * this.trauma * 14;
+    const shake = this.trauma * this.trauma * 14 * VP.world;
     // Two incommensurate sines read as noise and cost nothing.
     this.ox = shake * (Math.sin(time * 41) * 0.6 + Math.sin(time * 67.3) * 0.4);
     this.oy = shake * (Math.sin(time * 37.7 + 2) * 0.6 + Math.sin(time * 59.1) * 0.4);

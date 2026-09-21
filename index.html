@@ -2,17 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05060f" />
     <title>Bug Blaster</title>
     <link rel="icon" href="data:," />
     <style>
+      html {
+        background: #05060f;
+        -webkit-text-size-adjust: 100%;
+        overscroll-behavior: none;
+      }
       html,
       body {
         margin: 0;
         height: 100%;
+      }
+      body {
+        min-height: 100vh;
+        min-height: 100dvh;
         background: radial-gradient(ellipse at 50% 40%, #150a2e 0%, #05060f 70%);
         display: grid;
         place-items: center;
+        overscroll-behavior: none;
       }
       #game-wrapper {
         display: flex;
@@ -21,16 +32,13 @@
         gap: 10px;
       }
       canvas {
+        display: block;
         border: 1px solid #2a1f4a;
         box-shadow:
           0 0 0 1px rgba(0, 229, 255, 0.15),
           0 0 40px rgba(255, 60, 200, 0.18),
           0 0 80px rgba(0, 229, 255, 0.12);
         border-radius: 4px;
-        max-width: calc(100vw - 18px);
-        max-height: calc(100vh - 70px);
-        width: auto;
-        height: auto;
         touch-action: none;
         -webkit-user-select: none;
         user-select: none;
@@ -50,17 +58,6 @@
         align-items: center;
         gap: 6px;
       }
-      #controls .touch-hint {
-        display: none;
-      }
-      @media (hover: none) and (pointer: coarse) {
-        #controls .kbd-hint {
-          display: none;
-        }
-        #controls .touch-hint {
-          display: flex;
-        }
-      }
       #controls kbd {
         display: inline-block;
         padding: 2px 7px;
@@ -72,17 +69,46 @@
         font: inherit;
         line-height: 18px;
       }
+      /* Invisible probe whose padding resolves the safe-area insets for JS. */
+      #safe-probe {
+        position: fixed;
+        inset: 0;
+        visibility: hidden;
+        pointer-events: none;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+          env(safe-area-inset-left);
+      }
+      /* Fluid mode (phones, tablets, small windows): the canvas is the page. */
+      body.fluid {
+        display: block;
+        overflow: hidden;
+        touch-action: none;
+        background: #05060f;
+      }
+      body.fluid #game-wrapper {
+        display: block;
+      }
+      body.fluid canvas {
+        position: fixed;
+        inset: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      body.fluid #controls {
+        display: none;
+      }
     </style>
   </head>
   <body>
+    <div id="safe-probe" aria-hidden="true"></div>
     <div id="game-wrapper">
       <canvas id="game" width="960" height="540"></canvas>
       <div id="controls">
-        <span class="hint kbd-hint"><kbd>←</kbd><kbd>→</kbd> move</span>
-        <span class="hint kbd-hint"><kbd>Space</kbd> / click shoot</span>
-        <span class="hint kbd-hint"><kbd>Shift</kbd> / <kbd>E</kbd> RAGE when full</span>
-        <span class="hint kbd-hint"><kbd>M</kbd> mute</span>
-        <span class="hint touch-hint">drag to move &middot; auto-fires while touching &middot; tap RAGE when the meter is full</span>
+        <span class="hint"><kbd>←</kbd><kbd>→</kbd> move</span>
+        <span class="hint"><kbd>Space</kbd> / click shoot</span>
+        <span class="hint"><kbd>Shift</kbd> / <kbd>E</kbd> RAGE when full</span>
+        <span class="hint"><kbd>M</kbd> mute</span>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

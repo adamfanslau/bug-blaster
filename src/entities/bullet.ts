@@ -1,7 +1,8 @@
 import { lerp, smoothstep } from "../render/drawUtils";
-import { makeProjected, project, type Projected } from "../render/projection";
+import { makeProjected, project, type Projected, W } from "../render/projection";
 import { QUALITY } from "../render/quality";
 import { glowSprite, shadowSprite } from "../render/sprites";
+import { VP } from "../render/viewport";
 
 const VZ = -1.1; // depth units per second, toward the horizon
 export const BULLET_START_Z = 0.97;
@@ -13,7 +14,6 @@ export class Bullet {
   alive = true;
   z = BULLET_START_Z;
   alt = START_ALT;
-  readonly baseRadius = 5;
   readonly screen: Projected = makeProjected();
 
   private readonly trail: Float32Array;
@@ -27,6 +27,10 @@ export class Bullet {
     this.trail = new Float32Array(QUALITY.trailLen * 2);
   }
 
+  get baseRadius(): number {
+    return 5 * VP.world;
+  }
+
   get screenRadius(): number {
     return this.baseRadius * this.screen.scale;
   }
@@ -36,7 +40,7 @@ export class Bullet {
     this.lane += this.vLane * dt;
     // Fly down from the laptop screen to bug height as it travels.
     this.alt = lerp(BODY_ALT, START_ALT, smoothstep(0.3, 1, this.z));
-    if (this.z <= 0 || Math.abs(this.lane) > 1.4) this.alive = false;
+    if (this.z <= 0) this.alive = false;
   }
 
   project(): void {
@@ -49,6 +53,9 @@ export class Bullet {
       this.trailCount = Math.min(this.trailCount + 1, len);
     }
     project(this.lane, this.z, this.alt, this.screen);
+    // Off the sides of the screen: gone. (Screen-space, so column shots toward an edge survive.)
+    const margin = this.screenRadius * 4 + 8;
+    if (this.screen.x < -margin || this.screen.x > W + margin) this.alive = false;
   }
 
   render(ctx: CanvasRenderingContext2D): void {

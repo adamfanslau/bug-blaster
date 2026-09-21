@@ -72,6 +72,72 @@ export function makeCanvas(w: number, h: number): [HTMLCanvasElement, CanvasRend
   return [c, ctx];
 }
 
+export const MONO = "ui-monospace, Menlo, Consolas, monospace";
+
+const measureCache = new Map<string, number>();
+
+/** Clears memoized text measurements and wraps (call when the layout scale changes). */
+export function clearTextMeasureCache(): void {
+  measureCache.clear();
+  wrapCache.clear();
+}
+
+/** Memoized measureText width for `text` drawn in `font`. */
+export function measureTextWidth(ctx: CanvasRenderingContext2D, text: string, font: string): number {
+  return measure(ctx, text, font);
+}
+
+function measure(ctx: CanvasRenderingContext2D, text: string, font: string): number {
+  const key = `${font}|${text}`;
+  let w = measureCache.get(key);
+  if (w === undefined) {
+    const prev = ctx.font;
+    ctx.font = font;
+    w = ctx.measureText(text).width;
+    ctx.font = prev;
+    measureCache.set(key, w);
+  }
+  return w;
+}
+
+/** Largest font size <= maxPx at which `text` fits in `maxWidth`. */
+export function fitFontPx(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  weight: string,
+  maxPx: number,
+  maxWidth: number,
+  minPx = 8,
+): number {
+  const w = measure(ctx, text, `${weight} ${maxPx}px ${MONO}`);
+  if (w <= maxWidth) return maxPx;
+  return Math.max(minPx, Math.floor((maxPx * maxWidth) / w));
+}
+
+/** Greedy word wrap; memoized per text/font/width. */
+const wrapCache = new Map<string, string[]>();
+
+export function wrapText(ctx: CanvasRenderingContext2D, text: string, font: string, maxWidth: number): string[] {
+  const key = `${font}|${Math.round(maxWidth)}|${text}`;
+  let lines = wrapCache.get(key);
+  if (lines) return lines;
+  lines = [];
+  let current = "";
+  for (const word of text.split(" ")) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && measure(ctx, candidate, font) > maxWidth) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  wrapCache.set(key, lines);
+  if (wrapCache.size > 400) wrapCache.clear();
+  return lines;
+}
+
 export function formatDuration(seconds: number): string {
   const s = Math.floor(seconds);
   const m = Math.floor(s / 60);

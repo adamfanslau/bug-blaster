@@ -4,7 +4,7 @@ An HTML5 canvas game written in TypeScript. You are a frustrated developer at yo
 
 ## Gameplay
 
-- Move the dev with **A/D** or **←/→**; on touch, drag to move (auto-fires while touching)
+- Move the dev with **A/D** or **←/→**; on touch, drag to move and aim (auto-fires up your finger's column while touching)
 - Aim with the mouse, shoot with **click** or **Space**
 - Bugs spawn tiny at the horizon and grow as they approach. Squash them before they reach your desk, or they ship to production and you lose a coffee
 - Six bug kinds with their own behavior: `missing ;`, `undefined is not a function`, `off-by-one` (fixing it spawns another), `memory leak` (grows and takes 3 hits), `race condition` (jitters and teleports), `works on my machine` (shrugs off the first hit)
@@ -37,6 +37,10 @@ src/
   scenes/               # title, play, game over (postmortem)
 public/assets/          # intentionally empty: everything is drawn and synthesized at runtime
 ```
+
+### Desktop and mobile
+
+On desktop the game renders a fixed 960x540 logical canvas, letterboxed to the window. On phones, tablets, and small windows (coarse pointer or shortest side under 700px) it switches to a fluid mode: the canvas fills the viewport in either orientation, logical units equal CSS pixels, and `src/render/viewport.ts` derives a `ui` scale for the HUD and a `world` scale for entity sizes. Portrait raises the horizon and lowers the floor to make room for a stacked HUD and a thumb band with the RAGE button. Rotation re-lays everything out live.
 
 ### How the pseudo-3D works
 
