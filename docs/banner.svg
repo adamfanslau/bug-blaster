@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="BUG BLASTER: a synthwave shooter for developers with a deadline">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05060f"/>
+      <stop offset="0.6" stop-color="#120a2a"/>
+      <stop offset="1" stop-color="#3a1650"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a0b2e"/>
+      <stop offset="0.3" stop-color="#0a0616"/>
+      <stop offset="1" stop-color="#05030c"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb347"/>
+      <stop offset="1" stop-color="#ff2e88"/>
+    </linearGradient>
+    <linearGradient id="hglow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff50dc" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ff50dc" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff50dc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a0b2e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#1a0b2e" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="skyClip"><rect x="0" y="0" width="1200" height="195"/></clipPath>
+    <clipPath id="slice"><rect x="0" y="118" width="1200" height="14"/></clipPath>
+    <filter id="glow" x="-10%" y="-30%" width="120%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#00e5ff" flood-opacity="0.45"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+
+  <!-- Sky, sun, floor -->
+  <rect width="1200" height="195" fill="url(#sky)"/>
+  <g clip-path="url(#skyClip)">
+    <circle cx="600" cy="205" r="118" fill="url(#sun)"/>
+    <g fill="#1a0b2e">
+      <rect x="480" y="186" width="240" height="4"/>
+      <rect x="480" y="172" width="240" height="5"/>
+      <rect x="480" y="157" width="240" height="6"/>
+      <rect x="480" y="141" width="240" height="7"/>
+      <rect x="480" y="124" width="240" height="8"/>
+      <rect x="480" y="106" width="240" height="9"/>
+    </g>
+  </g>
+  <rect y="195" width="1200" height="105" fill="url(#floor)"/>
+  <rect y="170" width="1200" height="50" fill="url(#hglow)"/>
+  <rect y="195" width="1200" height="1.5" fill="#ff7ae0"/>
+
+  <!-- Floor grid -->
+  <g stroke="#00e5ff" stroke-opacity="0.35" stroke-width="1.5">
+    <line x1="0" y1="201" x2="1200" y2="201"/>
+    <line x1="0" y1="208" x2="1200" y2="208"/>
+    <line x1="0" y1="217" x2="1200" y2="217"/>
+    <line x1="0" y1="229" x2="1200" y2="229"/>
+    <line x1="0" y1="245" x2="1200" y2="245"/>
+    <line x1="0" y1="266" x2="1200" y2="266"/>
+    <line x1="0" y1="293" x2="1200" y2="293"/>
+  </g>
+  <g stroke="#ff3cc8" stroke-opacity="0.3" stroke-width="1.5">
+    <line x1="600" y1="195" x2="600" y2="300"/>
+    <line x1="560" y1="195" x2="440" y2="300"/>
+    <line x1="640" y1="195" x2="760" y2="300"/>
+    <line x1="520" y1="195" x2="280" y2="300"/>
+    <line x1="680" y1="195" x2="920" y2="300"/>
+    <line x1="480" y1="195" x2="120" y2="300"/>
+    <line x1="720" y1="195" x2="1080" y2="300"/>
+    <line x1="440" y1="195" x2="-40" y2="300"/>
+    <line x1="760" y1="195" x2="1240" y2="300"/>
+    <line x1="400" y1="195" x2="-200" y2="300"/>
+    <line x1="800" y1="195" x2="1400" y2="300"/>
+  </g>
+  <rect y="195" width="1200" height="40" fill="url(#fog)"/>
+
+  <!-- Drifting code bits -->
+  <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="16" fill="#5c7ea8" fill-opacity="0.55">
+    <text x="60" y="40">{</text><text x="150" y="88">;</text><text x="240" y="30">0</text><text x="330" y="70">&lt;</text>
+    <text x="900" y="36">1</text><text x="980" y="82">}</text><text x="1080" y="30">λ</text><text x="1140" y="74">/</text>
+    <text x="420" y="24" fill="#3a4a6a">=</text><text x="780" y="22" fill="#3a4a6a">&gt;</text>
+  </g>
+
+  <!-- Bugs flanking the title -->
+  <g id="bugL" transform="translate(120 128)">
+    <ellipse cx="0" cy="26" rx="34" ry="8" fill="#000" fill-opacity="0.45" filter="url(#soft)"/>
+    <g stroke="#1d6b2e" stroke-width="3" stroke-linecap="round" fill="none">
+      <path d="M-18 4 L-40 -8 L-52 6"/><path d="M-20 12 L-44 12 L-56 24"/><path d="M-16 20 L-38 30 L-48 44"/>
+      <path d="M18 4 L40 -8 L52 6"/><path d="M20 12 L44 12 L56 24"/><path d="M16 20 L38 30 L48 44"/>
+      <path d="M-8 -16 Q-14 -34 -22 -40"/><path d="M8 -16 Q14 -34 22 -40"/>
+    </g>
+    <circle cx="-22" cy="-40" r="3" fill="#9dff9d"/><circle cx="22" cy="-40" r="3" fill="#9dff9d"/>
+    <ellipse cx="0" cy="8" rx="30" ry="22" fill="#3fb950"/>
+    <ellipse cx="-9" cy="-3" rx="12" ry="9" fill="#9dff9d" fill-opacity="0.35"/>
+    <ellipse cx="-11" cy="0" rx="6" ry="7" fill="#fff"/><ellipse cx="11" cy="0" rx="6" ry="7" fill="#fff"/>
+    <circle cx="-9" cy="2" r="3" fill="#0b0d14"/><circle cx="13" cy="2" r="3" fill="#0b0d14"/>
+    <path d="M-26 36 l6 -4 6 4 6 -4 6 4 6 -4 6 4 6 -4 6 4" stroke="#ff4d4d" stroke-width="2.5" fill="none"/>
+    <text x="0" y="60" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-weight="700" font-size="14" fill="#9dff9d">missing ;</text>
+  </g>
+  <g id="bugR" transform="translate(1080 128)">
+    <ellipse cx="0" cy="26" rx="34" ry="8" fill="#000" fill-opacity="0.45" filter="url(#soft)"/>
+    <g stroke="#4b2a8a" stroke-width="3" stroke-linecap="round" fill="none">
+      <path d="M-18 4 L-40 -8 L-52 6"/><path d="M-20 12 L-44 12 L-56 24"/><path d="M-16 20 L-38 30 L-48 44"/>
+      <path d="M18 4 L40 -8 L52 6"/><path d="M20 12 L44 12 L56 24"/><path d="M16 20 L38 30 L48 44"/>
+      <path d="M-8 -16 Q-14 -34 -22 -40"/><path d="M8 -16 Q14 -34 22 -40"/>
+    </g>
+    <circle cx="-22" cy="-40" r="3" fill="#e6e6ff"/><circle cx="22" cy="-40" r="3" fill="#e6e6ff"/>
+    <ellipse cx="0" cy="8" rx="30" ry="22" fill="#a371f7" fill-opacity="0.45"/>
+    <ellipse cx="0" cy="8" rx="30" ry="22" fill="none" stroke="#e6e6ff" stroke-width="2" stroke-dasharray="5 4"/>
+    <ellipse cx="-11" cy="0" rx="6" ry="7" fill="#fff"/><ellipse cx="11" cy="0" rx="6" ry="7" fill="#fff"/>
+    <circle cx="-13" cy="2" r="3" fill="#0b0d14"/><circle cx="9" cy="2" r="3" fill="#0b0d14"/>
+    <text x="0" y="60" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-weight="700" font-size="14" fill="#e6e6ff">null</text>
+  </g>
+
+  <!-- Title: cyan and red offset layers under white, glitch slice on top -->
+  <g font-family="ui-monospace, Menlo, Consolas, monospace" font-weight="700" font-size="96" text-anchor="middle">
+    <text x="595" y="153" fill="#00e5ff" fill-opacity="0.9" textLength="720" lengthAdjust="spacingAndGlyphs">BUG BLASTER</text>
+    <text x="605" y="147" fill="#ff3b5c" fill-opacity="0.9" textLength="720" lengthAdjust="spacingAndGlyphs">BUG BLASTER</text>
+    <text x="600" y="150" fill="#ffffff" textLength="720" lengthAdjust="spacingAndGlyphs" filter="url(#glow)">BUG BLASTER</text>
+    <g clip-path="url(#slice)">
+      <rect x="0" y="118" width="1200" height="14" fill="#0b0d14" fill-opacity="0.9"/>
+      <text x="614" y="150" fill="#ffffff" textLength="720" lengthAdjust="spacingAndGlyphs">BUG BLASTER</text>
+      <animate attributeName="opacity" values="0;0;1;0;0;0;0;1;0;0" keyTimes="0;0.3;0.33;0.36;0.6;0.7;0.72;0.75;0.78;1" dur="4s" repeatCount="indefinite"/>
+    </g>
+  </g>
+
+  <!-- Subtitle and footer -->
+  <text x="600" y="232" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="21" fill="#e6edf3" fill-opacity="0.9">// a synthwave shooter for developers with a deadline</text>
+  <text x="24" y="286" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="16" fill="#3fe37c">$ npm run dev   # sprint 47 starts now</text>
+  <text x="1176" y="286" text-anchor="end" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="16" fill="#8b9bb4">0 dependencies · 0 asset files · ∞ bugs</text>
+</svg>
