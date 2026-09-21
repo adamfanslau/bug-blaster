@@ -59,7 +59,7 @@ npm install
 npm run dev        # http://localhost:5173  — the sprint starts now
 ```
 
-There's no hosted version. It runs on your machine, which, as we all know, is the only machine that matters. To play on your phone, run `npm run dev -- --host` and open the LAN address Vite prints.
+Or skip all that and play the hosted build at **[bugblaster.fanslau.me](https://bugblaster.fanslau.me)**. It also runs on your machine, which, as we all know, is the only machine that matters. To play on your phone from source, run `npm run dev -- --host` and open the LAN address Vite prints.
 
 ## ⌨️ Controls
 
@@ -134,6 +134,8 @@ npm run build      # tsc + vite build
 npm run typecheck  # tsc --noEmit
 npm run preview    # serve the production build
 ```
+
+- **Deploying.** Every push to `main` runs `.github/workflows/deploy-vps.yml`: build, rsync `dist/` to the VPS, flip a symlink. Served by Caddy at [bugblaster.fanslau.me](https://bugblaster.fanslau.me); the server side lives in the [vps](https://github.com/adamfanslau/vps) repo. Rollback is one SSH command. Shipping bugs to production has never been faster.
 
 </details>
 

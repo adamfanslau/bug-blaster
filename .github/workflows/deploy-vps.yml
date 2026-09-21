@@ -1,0 +1,76 @@
+# Deploys to the VPS as bugblaster.fanslau.me. From the vps repo template
+# workflows/deploy-static-site.yml; setup steps in its docs/50-deploy-from-github.md.
+#
+# Repo secrets:   VPS_HOST  VPS_SSH_KEY  VPS_KNOWN_HOSTS
+# Repo variables: SITE_DOMAIN=bugblaster.fanslau.me  BUILD_DIR=dist
+#
+# Each push to main builds with Vite, uploads dist/ to
+# /srv/www/<domain>/releases/<sha>/ and flips the `current` symlink.
+# Rollback: ssh with the same key and run `rollback`.
+
+name: Deploy to VPS (bugblaster.fanslau.me)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ vars.SITE_DOMAIN }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      BUILD_DIR: ${{ vars.BUILD_DIR || 'dist' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Check build output
+        run: |
+          test -d "$BUILD_DIR" || { echo "BUILD_DIR '$BUILD_DIR' not found"; exit 1; }
+          test -f "$BUILD_DIR/index.html" || echo "::warning::no index.html in $BUILD_DIR"
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName ${{ secrets.VPS_HOST }}
+            Port ${{ vars.VPS_SSH_PORT || 22 }}
+            User deploy
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Upload release
+        run: |
+          rsync -az --delete --chmod=D755,F644 \
+            --exclude '.git' --exclude '.DS_Store' \
+            "$BUILD_DIR"/ "vps:${GITHUB_SHA}/"
+
+      - name: Activate release
+        run: ssh vps activate "$GITHUB_SHA"
+
+      - name: Smoke test
+        run: |
+          sleep 2
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --max-redirs 3 -L "https://${{ vars.SITE_DOMAIN }}/")
+          echo "https://${{ vars.SITE_DOMAIN }}/ -> $code"
+          test "$code" = "200"
