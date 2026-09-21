@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bug Blaster</title>
+    <link rel="icon" href="data:," />
     <style>
       html,
       body {
         margin: 0;
         height: 100%;
-        background: #0d1117;
+        background: radial-gradient(ellipse at 50% 40%, #150a2e 0%, #05060f 70%);
         display: grid;
         place-items: center;
       }
@@ -20,8 +21,12 @@
         gap: 10px;
       }
       canvas {
-        image-rendering: pixelated;
-        border: 1px solid #30363d;
+        border: 1px solid #2a1f4a;
+        box-shadow:
+          0 0 0 1px rgba(0, 229, 255, 0.15),
+          0 0 40px rgba(255, 60, 200, 0.18),
+          0 0 80px rgba(0, 229, 255, 0.12);
+        border-radius: 4px;
         max-width: calc(100vw - 18px);
         max-height: calc(100vh - 70px);
         width: auto;
@@ -35,8 +40,10 @@
         display: flex;
         align-items: center;
         gap: 16px;
-        font: 13px/1 monospace;
-        color: #8b949e;
+        font: 13px/1 ui-monospace, Menlo, Consolas, monospace;
+        color: #8b9bb4;
+        flex-wrap: wrap;
+        justify-content: center;
       }
       #controls .hint {
         display: flex;
@@ -57,10 +64,10 @@
       #controls kbd {
         display: inline-block;
         padding: 2px 7px;
-        border: 1px solid #30363d;
+        border: 1px solid #3a2f5a;
         border-bottom-width: 2px;
         border-radius: 4px;
-        background: #161b22;
+        background: #12101f;
         color: #e6edf3;
         font: inherit;
         line-height: 18px;
@@ -72,8 +79,10 @@
       <canvas id="game" width="960" height="540"></canvas>
       <div id="controls">
         <span class="hint kbd-hint"><kbd>←</kbd><kbd>→</kbd> move</span>
-        <span class="hint kbd-hint"><kbd>Space</kbd> shoot</span>
-        <span class="hint touch-hint">drag to move &middot; auto-fires while touching</span>
+        <span class="hint kbd-hint"><kbd>Space</kbd> / click shoot</span>
+        <span class="hint kbd-hint"><kbd>Shift</kbd> / <kbd>E</kbd> RAGE when full</span>
+        <span class="hint kbd-hint"><kbd>M</kbd> mute</span>
+        <span class="hint touch-hint">drag to move &middot; auto-fires while touching &middot; tap RAGE when the meter is full</span>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

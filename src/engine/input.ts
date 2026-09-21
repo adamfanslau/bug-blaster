@@ -12,6 +12,9 @@ export class Input {
   touchY = 0;
   touchActive = false;
   touchStarted = false;
+  touchCount = 0;
+  /** True on the frame a second finger lands (two-finger tap). */
+  multiTouchStarted = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -46,8 +49,10 @@ export class Input {
         e.preventDefault();
         if (e.touches.length > 0) {
           this.updateTouchPosition(e.touches[0]);
+          if (!this.touchActive) this.touchStarted = true;
           this.touchActive = true;
-          this.touchStarted = true;
+          if (e.touches.length >= 2 && this.touchCount < 2) this.multiTouchStarted = true;
+          this.touchCount = e.touches.length;
         }
       },
       { passive: false },
@@ -65,6 +70,7 @@ export class Input {
         type,
         (e) => {
           e.preventDefault();
+          this.touchCount = e.touches.length;
           if (e.touches.length === 0) {
             this.touchActive = false;
           } else {
@@ -102,5 +108,6 @@ export class Input {
     this.keysPressed.clear();
     this.mouseClicked = false;
     this.touchStarted = false;
+    this.multiTouchStarted = false;
   }
 }

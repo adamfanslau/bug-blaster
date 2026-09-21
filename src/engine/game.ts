@@ -7,6 +7,9 @@ export class Game {
   readonly width: number;
   readonly height: number;
 
+  /** Seconds since start; scenes use it to drive animations. */
+  time = 0;
+
   private scene: Scene | null = null;
   private lastTime = 0;
   private running = false;
@@ -44,9 +47,14 @@ export class Game {
     // Clamp dt so a backgrounded tab doesn't produce a huge simulation step.
     const dt = Math.min((time - this.lastTime) / 1000, 1 / 30);
     this.lastTime = time;
+    this.time += dt;
 
     this.scene?.update(dt);
+    // Reset and fence ctx state so nothing a scene sets can leak into the next frame.
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.save();
     this.scene?.render(this.ctx);
+    this.ctx.restore();
     this.input.endFrame();
 
     requestAnimationFrame(this.loop);

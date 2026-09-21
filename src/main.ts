@@ -1,5 +1,5 @@
 import { Game } from "./engine/game";
-import { PlayScene } from "./scenes/playScene";
+import { TitleScene } from "./scenes/titleScene";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game");
 if (!canvas) {
@@ -7,5 +7,5 @@ if (!canvas) {
 }
 
 const game = new Game(canvas);
-game.setScene(new PlayScene(game));
+game.setScene(new TitleScene(game));
 game.start();

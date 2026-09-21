@@ -1,30 +1,89 @@
-const SPEED = 600;
+import { lerp, smoothstep } from "../render/drawUtils";
+import { makeProjected, project, type Projected } from "../render/projection";
+import { QUALITY } from "../render/quality";
+import { glowSprite, shadowSprite } from "../render/sprites";
 
-/** A code fix fired by the player toward a bug. */
+const VZ = -1.1; // depth units per second, toward the horizon
+export const BULLET_START_Z = 0.97;
+const START_ALT = 1.1; // laptop-lid height
+const BODY_ALT = 0.12; // bug body height
+
+/** A code fix fired down the corridor; shrinks into the vanishing point. */
 export class Bullet {
   alive = true;
-  readonly radius = 4;
-  private readonly vx: number;
-  private readonly vy: number;
+  z = BULLET_START_Z;
+  alt = START_ALT;
+  readonly baseRadius = 5;
+  readonly screen: Projected = makeProjected();
+
+  private readonly trail: Float32Array;
+  private head = 0;
+  private trailCount = 0;
 
   constructor(
-    public x: number,
-    public y: number,
-    angle: number,
+    public lane: number,
+    private readonly vLane: number,
   ) {
-    this.vx = Math.cos(angle) * SPEED;
-    this.vy = Math.sin(angle) * SPEED;
+    this.trail = new Float32Array(QUALITY.trailLen * 2);
+  }
+
+  get screenRadius(): number {
+    return this.baseRadius * this.screen.scale;
   }
 
   update(dt: number): void {
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
+    this.z += VZ * dt;
+    this.lane += this.vLane * dt;
+    // Fly down from the laptop screen to bug height as it travels.
+    this.alt = lerp(BODY_ALT, START_ALT, smoothstep(0.3, 1, this.z));
+    if (this.z <= 0 || Math.abs(this.lane) > 1.4) this.alive = false;
+  }
+
+  project(): void {
+    // Remember the previous screen position (skip the never-projected initial zeros).
+    if (this.screen.scale > 0) {
+      const len = this.trail.length / 2;
+      this.trail[this.head * 2] = this.screen.x;
+      this.trail[this.head * 2 + 1] = this.screen.y;
+      this.head = (this.head + 1) % len;
+      this.trailCount = Math.min(this.trailCount + 1, len);
+    }
+    project(this.lane, this.z, this.alt, this.screen);
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    ctx.fillStyle = "#e6edf3";
+    const { x, y, floorY, scale } = this.screen;
+    const r = Math.max(1.2, this.screenRadius);
+    ctx.save();
+
+    // Faint floor shadow sells the altitude.
+    ctx.globalAlpha = 0.35 * scale;
+    ctx.drawImage(shadowSprite(), x - r * 1.5, floorY - r * 0.4, r * 3, r * 0.8);
+
+    // Comet trail: shrinking circles from oldest to newest.
+    const len = this.trail.length / 2;
+    ctx.fillStyle = "#7ee7ff";
+    for (let i = 0; i < this.trailCount; i++) {
+      const idx = (this.head - this.trailCount + i + len) % len;
+      const k = (i + 1) / (this.trailCount + 1);
+      ctx.globalAlpha = 0.45 * k;
+      ctx.beginPath();
+      ctx.arc(this.trail[idx * 2], this.trail[idx * 2 + 1], r * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (QUALITY.glow) {
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.8;
+      const gs = r * 6;
+      ctx.drawImage(glowSprite("#7ee7ff"), x - gs / 2, y - gs / 2, gs, gs);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 }
